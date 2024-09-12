@@ -1,0 +1,46 @@
+FROM php:7.4-fpm
+
+# These pages may be helpful for customizing the below run lines:
+# https://github.com/docker-library/docs/tree/master/php
+# https://github.com/mlocati/docker-php-extension-installer
+
+# Easy installer allows for easier dependency installation
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+
+RUN                                                           \
+    apt-get update &&                                         \ 
+    apt-get install -y telnet                              \
+	libfreetype-dev \
+	libjpeg62-turbo-dev \
+	libpng-dev \
+	libwebp-dev \
+	libavif-dev \
+	zip libzip-dev && \
+
+	printf "                                                \n\
+            [www]                                           \n\
+            listen = 127.0.0.1:7474                         \n\
+            php_flag[log_errors] = on                       \n\
+                                                            \n\
+            [global]                                        \n\
+            error_log = /var/log/php74-sitename/error.log   \n\
+            " >> /usr/local/etc/php-fpm.conf &&               \
+                                                              \
+    chmod +x /usr/local/bin/install-php-extensions &&         \
+    install-php-extensions gd xdebug mysqli pdo pdo_mysql     \
+        memcache bz2 zip exif 
+
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp
+RUN docker-php-ext-install -j$(nproc) gd
+RUN pecl install redis && docker-php-ext-enable redis
+
+RUN cd /tmp \
+	&& curl -o ioncube.tar.gz http://downloads3.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz \
+    && tar -xvvzf ioncube.tar.gz \
+    && mv ioncube/ioncube_loader_lin_7.4.so /usr/local/lib/php/extensions/* \
+    && rm -Rf ioncube.tar.gz ioncube \
+    && echo "zend_extension=/usr/local/lib/php/extensions/no-debug-non-zts-20190902/ioncube_loader_lin_7.4.so" > /usr/local/etc/php/conf.d/00_docker-php-ext-ioncube_loader_lin_7.4.ini
+
+
+
